@@ -20,7 +20,7 @@ import Dispatch
 import Network
 
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-public final class NIOTSListenerBootstrap {
+public final class NIOTSDatagramListenerBootstrap {
     private let group: EventLoopGroup
     private let childGroup: EventLoopGroup
     private var serverChannelInit: ((Channel) -> EventLoopFuture<Void>)?
@@ -29,11 +29,11 @@ public final class NIOTSListenerBootstrap {
     private var childChannelOptions = ChannelOptionsStorage()
     private var serverQoS: DispatchQoS?
     private var childQoS: DispatchQoS?
-    private var tcpOptions: NWProtocolTCP.Options = .init()
+    private var udpOptions: NWProtocolUDP.Options = .init()
     private var dtlsOptions: NWProtocolTLS.Options?
     private var bindTimeout: TimeAmount?
 
-    /// Create a `NIOTSListenerBootstrap` for the `EventLoopGroup` `group`.
+    /// Create a `NIOTSDatagramListenerBootstrap` for the `EventLoopGroup` `group`.
     ///
     /// This initializer only exists to be more in-line with the NIO core bootstraps, in that they
     /// may be constructed with an `EventLoopGroup` and by extenstion an `EventLoop`. As such an
@@ -47,12 +47,9 @@ public final class NIOTSListenerBootstrap {
     ///     - group: The `EventLoopGroup` to use for the `ServerSocketChannel`.
     public convenience init(group: EventLoopGroup) {
         self.init(group: group, childGroup: group)
-
-        self.serverChannelOptions.append(key: ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
-        self.childChannelOptions.append(key: ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
     }
 
-    /// Create a `NIOTSListenerBootstrap` for the `NIOTSEventLoopGroup` `group`.
+    /// Create a `NIOTSDatagramListenerBootstrap` for the `NIOTSEventLoopGroup` `group`.
     ///
     /// - parameters:
     ///     - group: The `NIOTSEventLoopGroup` to use for the `ServerSocketChannel`.
@@ -60,7 +57,7 @@ public final class NIOTSListenerBootstrap {
         self.init(group: group as EventLoopGroup)
     }
 
-    /// Create a `NIOTSListenerBootstrap`.
+    /// Create a `NIOTSDatagramListenerBootstrap`.
     ///
     /// This initializer only exists to be more in-line with the NIO core bootstraps, in that they
     /// may be constructed with an `EventLoopGroup` and by extenstion an `EventLoop`. As such an
@@ -71,33 +68,30 @@ public final class NIOTSListenerBootstrap {
     /// Note that the "real" solution is described in https://github.com/apple/swift-nio/issues/674.
     ///
     /// - parameters:
-    ///     - group: The `EventLoopGroup` to use for the `bind` of the `NIOTSListenerChannel`
-    ///         and to accept new `NIOTSConnectionChannel`s with.
-    ///     - childGroup: The `EventLoopGroup` to run the accepted `NIOTSConnectionChannel`s on.
+    ///     - group: The `EventLoopGroup` to use for the `bind` of the `NIOTSDatagramListenerChannel`
+    ///         and to accept new `NIOTSDatagramConnectionChannel`s with.
+    ///     - childGroup: The `EventLoopGroup` to run the accepted `NIOTSDatagramConnectionChannel`s on.
     public init(group: EventLoopGroup, childGroup: EventLoopGroup) {
         self.group = group
         self.childGroup = childGroup
-
-        self.serverChannelOptions.append(key: ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
-        self.childChannelOptions.append(key: ChannelOptions.socket(IPPROTO_TCP, TCP_NODELAY), value: 1)
     }
 
-    /// Create a `NIOTSListenerBootstrap`.
+    /// Create a `NIOTSDatagramListenerBootstrap`.
     ///
     /// - parameters:
-    ///     - group: The `NIOTSEventLoopGroup` to use for the `bind` of the `NIOTSListenerChannel`
-    ///         and to accept new `NIOTSConnectionChannel`s with.
-    ///     - childGroup: The `NIOTSEventLoopGroup` to run the accepted `NIOTSConnectionChannel`s on.
+    ///     - group: The `NIOTSEventLoopGroup` to use for the `bind` of the `NIOTSDatagramListenerChannel`
+    ///         and to accept new `NIOTSDatagramConnectionChannel`s with.
+    ///     - childGroup: The `NIOTSEventLoopGroup` to run the accepted `NIOTSDatagramConnectionChannel`s on.
     public convenience init(group: NIOTSEventLoopGroup, childGroup: NIOTSEventLoopGroup) {
         self.init(group: group as EventLoopGroup, childGroup: childGroup as EventLoopGroup)
     }
 
-    /// Initialize the `NIOTSListenerChannel` with `initializer`. The most common task in initializer is to add
+    /// Initialize the `NIOTSDatagramListenerChannel` with `initializer`. The most common task in initializer is to add
     /// `ChannelHandler`s to the `ChannelPipeline`.
     ///
-    /// The `NIOTSListenerChannel` uses the accepted `NIOTSConnectionChannel`s as inbound messages.
+    /// The `NIOTSDatagramListenerChannel` uses the accepted `NIOTSDatagramConnectionChannel`s as inbound messages.
     ///
-    /// - note: To set the initializer for the accepted `NIOTSConnectionChannel`s, look at
+    /// - note: To set the initializer for the accepted `NIOTSDatagramConnectionChannel`s, look at
     ///     `ServerBootstrap.childChannelInitializer`.
     ///
     /// - parameters:
@@ -107,7 +101,7 @@ public final class NIOTSListenerBootstrap {
         return self
     }
 
-    /// Initialize the accepted `NIOTSConnectionChannel`s with `initializer`. The most common task in initializer is to add
+    /// Initialize the accepted `NIOTSDatagramConnectionChannel`s with `initializer`. The most common task in initializer is to add
     /// `ChannelHandler`s to the `ChannelPipeline`.
     ///
     /// The accepted `Channel` will operate on `ByteBuffer` as inbound and `IOData` as outbound messages.
@@ -119,9 +113,9 @@ public final class NIOTSListenerBootstrap {
         return self
     }
 
-    /// Specifies a `ChannelOption` to be applied to the `NIOTSListenerChannel`.
+    /// Specifies a `ChannelOption` to be applied to the `NIOTSDatagramListenerChannel`.
     ///
-    /// - note: To specify options for the accepted `NIOTSConnectionChannels`s, look at `NIOTSListenerBootstrap.childChannelOption`.
+    /// - note: To specify options for the accepted `NIOTSDatagramConnectionChannels`s, look at `NIOTSDatagramListenerBootstrap.childChannelOption`.
     ///
     /// - parameters:
     ///     - option: The option to be applied.
@@ -131,7 +125,7 @@ public final class NIOTSListenerBootstrap {
         return self
     }
 
-    /// Specifies a `ChannelOption` to be applied to the accepted `NIOTSConnectionChannel`s.
+    /// Specifies a `ChannelOption` to be applied to the accepted `NIOTSDatagramConnectionChannel`s.
     ///
     /// - parameters:
     ///     - option: The option to be applied.
@@ -169,27 +163,27 @@ public final class NIOTSListenerBootstrap {
         return self
     }
 
-    /// Specifies the TCP options to use on the child `Channel`s.
+    /// Specifies the UDP options to use on the child `Channel`s.
     ///
-    /// To retrieve the TCP options from connected channels, use
-    /// `NIOTSChannelOptions.TCPConfiguration`. It is not possible to change the
-    /// TCP configuration after `bind` is called.
-    public func tcpOptions(_ options: NWProtocolTCP.Options) -> Self {
-        self.tcpOptions = options
+    /// To retrieve the UDP options from connected channels, use
+    /// `NIOTSDatagramChannelOptions.UDPConfiguration`. It is not possible to change the
+    /// UDP configuration after `bind` is called.
+    public func udpOptions(_ options: NWProtocolUDP.Options) -> Self {
+        self.udpOptions = options
         return self
     }
 
     /// Specifies the TLS options to use on the child `Channel`s.
     ///
     /// To retrieve the TLS options from connected channels, use
-    /// `NIOTSChannelOptions.TLSConfiguration`. It is not possible to change the
+    /// `NIOTSDatagramChannelOptions.TLSConfiguration`. It is not possible to change the
     /// TLS configuration after `bind` is called.
     public func tlsOptions(_ options: NWProtocolTLS.Options) -> Self {
         self.dtlsOptions = options
         return self
     }
 
-    /// Bind the `NIOTSListenerChannel` to `host` and `port`.
+    /// Bind the `NIOTSDatagramListenerChannel` to `host` and `port`.
     ///
     /// - parameters:
     ///     - host: The host to bind on.
@@ -208,7 +202,7 @@ public final class NIOTSListenerBootstrap {
         }
     }
 
-    /// Bind the `NIOTSListenerChannel` to `address`.
+    /// Bind the `NIOTSDatagramListenerChannel` to `address`.
     ///
     /// - parameters:
     ///     - address: The `SocketAddress` to bind on.
@@ -218,7 +212,7 @@ public final class NIOTSListenerBootstrap {
         }
     }
 
-    /// Bind the `NIOTSListenerChannel` to a UNIX Domain Socket.
+    /// Bind the `NIOTSDatagramListenerChannel` to a UNIX Domain Socket.
     ///
     /// - parameters:
     ///     - unixDomainSocketPath: The _Unix domain socket_ path to bind to. `unixDomainSocketPath` must not exist, it will be created by the system.
@@ -233,7 +227,7 @@ public final class NIOTSListenerBootstrap {
         }
     }
 
-    /// Bind the `NIOTSListenerChannel` to a given `NWEndpoint`.
+    /// Bind the `NIOTSDatagramListenerChannel` to a given `NWEndpoint`.
     ///
     /// - parameters:
     ///     - endpoint: The `NWEndpoint` to bind this channel to.
@@ -250,14 +244,14 @@ public final class NIOTSListenerBootstrap {
         let serverChannelOptions = self.serverChannelOptions
         let childChannelOptions = self.childChannelOptions
 
-        let serverChannel = NIOTSListenerChannel(eventLoop: eventLoop,
+        let serverChannel = NIOTSDatagramListenerChannel(eventLoop: eventLoop,
                                                  qos: self.serverQoS,
-                                                 tcpOptions: self.tcpOptions,
+                                                 udpOptions: self.udpOptions,
                                                  dtlsOptions: self.dtlsOptions,
                                                  childLoopGroup: self.childGroup,
                                                  childChannelQoS: self.childQoS,
-                                                 childTCPOptions: self.tcpOptions,
-                                                 childTLSOptions: self.dtlsOptions)
+                                                 childUDPOptions: self.udpOptions,
+                                                 childDTLSOptions: self.dtlsOptions)
 
         return eventLoop.submit {
             return serverChannelOptions.applyAllChannelOptions(to: serverChannel).flatMap {
@@ -298,8 +292,8 @@ public final class NIOTSListenerBootstrap {
 
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
 private class AcceptHandler: ChannelInboundHandler {
-    typealias InboundIn = NIOTSConnectionChannel
-    typealias InboundOut = NIOTSConnectionChannel
+    typealias InboundIn = NIOTSDatagramConnectionChannel
+    typealias InboundOut = NIOTSDatagramConnectionChannel
 
     private let childChannelInitializer: ((Channel) -> EventLoopFuture<Void>)?
     private let childChannelOptions: ChannelOptionsStorage

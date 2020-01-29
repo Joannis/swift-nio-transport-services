@@ -23,7 +23,7 @@ import Dispatch
 import Network
 
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-internal final class NIOTSListenerChannel {
+internal final class NIOTSDatagramListenerChannel {
     /// The `ByteBufferAllocator` for this `Channel`.
     public let allocator = ByteBufferAllocator()
 
@@ -46,8 +46,8 @@ internal final class NIOTSListenerChannel {
     /// after the initial connection attempt has been made.
     private var nwListener: NWListener?
 
-    /// The TCP options for this listener.
-    private let tcpOptions: NWProtocolTCP.Options
+    /// The UDP options for this listener.
+    private let udpOptions: NWProtocolUDP.Options
 
     /// The TLS options for this listener.
     private let dtlsOptions: NWProtocolTLS.Options?
@@ -89,33 +89,33 @@ internal final class NIOTSListenerChannel {
     /// The QoS to use for child channels.
     private let childChannelQoS: DispatchQoS?
 
-    /// The TCP options to use for child channels.
-    private let childTCPOptions: NWProtocolTCP.Options
+    /// The UDP options to use for child channels.
+    private let childUDPOptions: NWProtocolUDP.Options
 
     /// The TLS options to use for child channels.
-    private let childTLSOptions: NWProtocolTLS.Options?
+    private let childDTLSOptions: NWProtocolTLS.Options?
 
 
-    /// Create a `NIOTSListenerChannel` on a given `NIOTSEventLoop`.
+    /// Create a `NIOTSDatagramListenerChannel` on a given `NIOTSEventLoop`.
     ///
-    /// Note that `NIOTSListenerChannel` objects cannot be created on arbitrary loops types.
+    /// Note that `NIOTSDatagramListenerChannel` objects cannot be created on arbitrary loops types.
     internal init(eventLoop: NIOTSEventLoop,
                   qos: DispatchQoS? = nil,
-                  tcpOptions: NWProtocolTCP.Options,
+                  udpOptions: NWProtocolUDP.Options,
                   dtlsOptions: NWProtocolTLS.Options?,
                   childLoopGroup: EventLoopGroup,
                   childChannelQoS: DispatchQoS?,
-                  childTCPOptions: NWProtocolTCP.Options,
-                  childTLSOptions: NWProtocolTLS.Options?) {
+                  childUDPOptions: NWProtocolUDP.Options,
+                  childDTLSOptions: NWProtocolTLS.Options?) {
         self.tsEventLoop = eventLoop
         self.closePromise = eventLoop.makePromise()
         self.connectionQueue = eventLoop.channelQueue(label: "nio.transportservices.listenerchannel", qos: qos)
-        self.tcpOptions = tcpOptions
+        self.udpOptions = udpOptions
         self.dtlsOptions = dtlsOptions
         self.childLoopGroup = childLoopGroup
         self.childChannelQoS = childChannelQoS
-        self.childTCPOptions = childTCPOptions
-        self.childTLSOptions = childTLSOptions
+        self.childUDPOptions = childUDPOptions
+        self.childDTLSOptions = childDTLSOptions
 
         // Must come last, as it requires self to be completely initialized.
         self._pipeline = ChannelPipeline(channel: self)
@@ -123,9 +123,9 @@ internal final class NIOTSListenerChannel {
 }
 
 
-// MARK:- NIOTSListenerChannel implementation of Channel
+// MARK:- NIOTSDatagramListenerChannel implementation of Channel
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSListenerChannel: Channel {
+extension NIOTSDatagramListenerChannel: Channel {
     /// The `ChannelPipeline` for this `Channel`.
     public var pipeline: ChannelPipeline {
         return self._pipeline
@@ -191,7 +191,7 @@ extension NIOTSListenerChannel: Channel {
             case (SOL_SOCKET, SO_REUSEPORT):
                 self.reusePort = (value as! SocketOptionValue) != Int32(0)
             default:
-                try self.tcpOptions.applyChannelOption(option: optionValue, value: value as! SocketOptionValue)
+                try self.udpOptions.applyChannelOption(option: optionValue, value: value as! SocketOptionValue)
             }
         case is NIOTSEnablePeerToPeerOption:
             self.enablePeerToPeer = value as! NIOTSEnablePeerToPeerOption.Value
@@ -228,7 +228,7 @@ extension NIOTSListenerChannel: Channel {
             case (SOL_SOCKET, SO_REUSEPORT):
                 return Int32(self.reusePort ? 1 : 0) as! Option.Value
             default:
-                return try self.tcpOptions.valueFor(socketOption: optionValue) as! Option.Value
+                return try self.udpOptions.valueFor(socketOption: optionValue) as! Option.Value
             }
         case is NIOTSEnablePeerToPeerOption:
             return self.enablePeerToPeer as! Option.Value
@@ -239,9 +239,9 @@ extension NIOTSListenerChannel: Channel {
 }
 
 
-// MARK:- NIOTSListenerChannel implementation of StateManagedChannel.
+// MARK:- NIOTSDatagramListenerChannel implementation of StateManagedChannel.
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSListenerChannel: StateManagedChannel {
+extension NIOTSDatagramListenerChannel: StateManagedChannel {
     typealias ActiveSubstate = ListenerActiveSubstate
 
     /// Listener channels do not have active substates: they are either active or they
@@ -290,7 +290,7 @@ extension NIOTSListenerChannel: StateManagedChannel {
         assert(self.bindPromise == nil)
         self.bindPromise = promise
 
-        let parameters = NWParameters(tls: self.dtlsOptions, tcp: self.tcpOptions)
+        let parameters = NWParameters(dtls: self.dtlsOptions, udp: self.udpOptions)
 
         // If we have a target that is not for a Bonjour service, we treat this as a request for
         // a specific local endpoint. That gets configured on the parameters. If this is a bonjour
@@ -380,7 +380,7 @@ extension NIOTSListenerChannel: StateManagedChannel {
     public func channelRead0(_ data: NIOAny) {
         self.eventLoop.assertInEventLoop()
 
-        let channel = self.unwrapData(data, as: NIOTSConnectionChannel.self)
+        let channel = self.unwrapData(data, as: NIOTSDatagramConnectionChannel.self)
         let p: EventLoopPromise<Void> = channel.eventLoop.makePromise()
         channel.eventLoop.execute {
             channel.registerAlreadyConfigured0(promise: p)
@@ -404,7 +404,7 @@ extension NIOTSListenerChannel: StateManagedChannel {
 
 // MARK:- Implementations of the callbacks passed to NWListener.
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSListenerChannel {
+extension NIOTSDatagramListenerChannel {
     /// Called by the underlying `NWListener` when its internal state has changed.
     private func stateUpdateHandler(newState: NWListener.State) {
         switch newState {
@@ -436,12 +436,12 @@ extension NIOTSListenerChannel {
             return
         }
 
-        let newChannel = NIOTSConnectionChannel(wrapping: connection,
+        let newChannel = NIOTSDatagramConnectionChannel(wrapping: connection,
                                                 on: self.childLoopGroup.next() as! NIOTSEventLoop,
                                                 parent: self,
                                                 qos: self.childChannelQoS,
-                                                tcpOptions: self.childTCPOptions,
-                                                tlsOptions: self.childTLSOptions)
+                                                udpOptions: self.childUDPOptions,
+                                                dtlsOptions: self.childDTLSOptions)
 
         self.pipeline.fireChannelRead(NIOAny(newChannel))
         self.pipeline.fireChannelReadComplete()
@@ -451,7 +451,7 @@ extension NIOTSListenerChannel {
 
 // MARK:- Implementations of state management for the channel.
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSListenerChannel {
+extension NIOTSDatagramListenerChannel {
     /// Make the channel active.
     private func bindComplete0() {
         let promise = self.bindPromise
