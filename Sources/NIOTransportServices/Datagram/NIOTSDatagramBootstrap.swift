@@ -20,7 +20,7 @@ import Dispatch
 import Network
 
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-public final class NIOTSDatagramConnectionBootstrap {
+public final class NIOTSDatagramBootstrap {
     private let group: EventLoopGroup
     private var channelInitializer: ((Channel) -> EventLoopFuture<Void>)?
     private var connectTimeout: TimeAmount = TimeAmount.seconds(10)
@@ -119,11 +119,11 @@ public final class NIOTSDatagramConnectionBootstrap {
     ///     - host: The host to connect to.
     ///     - port: The port to connect to.
     /// - returns: An `EventLoopFuture<Channel>` to deliver the `Channel` when connected.
-    public func connect(host: String, port: Int) -> EventLoopFuture<Channel> {
+    public func bind(host: String, port: Int) -> EventLoopFuture<Channel> {
         guard let actualPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
             return self.group.next().makeFailedFuture(NIOTSErrors.InvalidPort(port: port))
         }
-        return self.connect(endpoint: NWEndpoint.hostPort(host: .init(host), port: actualPort))
+        return self.bind(endpoint: NWEndpoint.hostPort(host: .init(host), port: actualPort))
     }
 
     /// Specify the `address` to connect to for the UDP `Channel` that will be established.
@@ -131,9 +131,9 @@ public final class NIOTSDatagramConnectionBootstrap {
     /// - parameters:
     ///     - address: The address to connect to.
     /// - returns: An `EventLoopFuture<Channel>` to deliver the `Channel` when connected.
-    public func connect(to address: SocketAddress) -> EventLoopFuture<Channel> {
-        return self.connect { channel, promise in
-            channel.connect(to: address, promise: promise)
+    public func bind(to address: SocketAddress) -> EventLoopFuture<Channel> {
+        return self.bind0 { channel, promise in
+            channel.bind(to: address, promise: promise)
         }
     }
 
@@ -142,25 +142,25 @@ public final class NIOTSDatagramConnectionBootstrap {
     /// - parameters:
     ///     - unixDomainSocketPath: The _Unix domain socket_ path to connect to.
     /// - returns: An `EventLoopFuture<Channel>` to deliver the `Channel` when connected.
-    public func connect(unixDomainSocketPath: String) -> EventLoopFuture<Channel> {
+    public func bind(unixDomainSocketPath: String) -> EventLoopFuture<Channel> {
         do {
             let address = try SocketAddress(unixDomainSocketPath: unixDomainSocketPath)
-            return connect(to: address)
+            return bind(to: address)
         } catch {
             return group.next().makeFailedFuture(error)
         }
     }
 
     /// Specify the `endpoint` to connect to for the UDP `Channel` that will be established.
-    public func connect(endpoint: NWEndpoint) -> EventLoopFuture<Channel> {
-        return self.connect { channel, promise in
-            channel.triggerUserOutboundEvent(NIOTSNetworkEvents.ConnectToNWEndpoint(endpoint: endpoint),
+    public func bind(endpoint: NWEndpoint) -> EventLoopFuture<Channel> {
+        return self.bind0 { channel, promise in
+            channel.triggerUserOutboundEvent(NIOTSNetworkEvents.BindToNWEndpoint(endpoint: endpoint),
                                              promise: promise)
         }
     }
 
-    private func connect(_ connectAction: @escaping (Channel, EventLoopPromise<Void>) -> Void) -> EventLoopFuture<Channel> {
-        let conn: Channel = NIOTSDatagramConnectionChannel(eventLoop: self.group.next() as! NIOTSEventLoop,
+    private func bind0(_ binder: @escaping (Channel, EventLoopPromise<Void>) -> Void) -> EventLoopFuture<Channel> {
+        let conn: Channel = NIOTSDatagramChannel(eventLoop: self.group.next() as! NIOTSEventLoop,
                                                    qos: self.qos,
                                                    udpOptions: self.udpOptions,
                                                    dtlsOptions: self.dtlsOptions)
@@ -174,17 +174,17 @@ public final class NIOTSDatagramConnectionBootstrap {
                 conn.eventLoop.assertInEventLoop()
                 return conn.register()
             }.flatMap {
-                let connectPromise: EventLoopPromise<Void> = conn.eventLoop.makePromise()
-                connectAction(conn, connectPromise)
+                let bindPromise: EventLoopPromise<Void> = conn.eventLoop.makePromise()
+                binder(conn, bindPromise)
                 let cancelTask = conn.eventLoop.scheduleTask(in: self.connectTimeout) {
-                    connectPromise.fail(ChannelError.connectTimeout(self.connectTimeout))
+                    bindPromise.fail(ChannelError.connectTimeout(self.connectTimeout))
                     conn.close(promise: nil)
                 }
 
-                connectPromise.futureResult.whenComplete { (_: Result<Void, Error>) in
+                bindPromise.futureResult.whenComplete { (_: Result<Void, Error>) in
                     cancelTask.cancel()
                 }
-                return connectPromise.futureResult
+                return bindPromise.futureResult
             }.map { conn }.flatMapErrorThrowing {
                 conn.close(promise: nil)
                 throw $0

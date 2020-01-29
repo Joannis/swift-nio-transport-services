@@ -45,7 +45,7 @@ private struct ConnectionChannelOptions {
 }
 
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-internal final class NIOTSDatagramConnectionChannel {
+internal final class NIOTSDatagramChannel {
     /// The `ByteBufferAllocator` for this `Channel`.
     public let allocator = ByteBufferAllocator()
 
@@ -149,7 +149,7 @@ internal final class NIOTSDatagramConnectionChannel {
 
 // MARK:- NIOTSDatagramConnectionChannel implementation of Channel
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSDatagramConnectionChannel: Channel, ChannelCore {
+extension NIOTSDatagramChannel: Channel, ChannelCore {
     /// The `ChannelPipeline` for this `Channel`.
     public var pipeline: ChannelPipeline {
         return self._pipeline
@@ -271,7 +271,7 @@ extension NIOTSDatagramConnectionChannel: Channel, ChannelCore {
 
 // MARK:- NIOTSDatagramConnectionChannel implementation of StateManagedChannel.
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSDatagramConnectionChannel {
+extension NIOTSDatagramChannel {
     typealias ActiveSubstate = UDPSubstate
     
     public var eventLoop: EventLoop {
@@ -614,7 +614,7 @@ extension NIOTSDatagramConnectionChannel {
 
 // MARK:- Implementations of the callbacks passed to NWConnection.
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSDatagramConnectionChannel {
+extension NIOTSDatagramChannel {
     /// Called by the underlying `NWConnection` when its internal state has changed.
     private func stateUpdateHandler(newState: NWConnection.State) {
         switch newState {
@@ -707,7 +707,7 @@ extension NIOTSDatagramConnectionChannel {
 
 // MARK:- Implementations of state management for the channel.
 @available(OSX 10.14, iOS 12.0, tvOS 12.0, watchOS 6.0, *)
-extension NIOTSDatagramConnectionChannel {
+extension NIOTSDatagramChannel {
     /// Whether the inbound side of the connection is still open.
     private var inboundStreamOpen: Bool {
         switch self.state {
