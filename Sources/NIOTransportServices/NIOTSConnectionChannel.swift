@@ -607,8 +607,6 @@ extension NIOTSConnectionChannel: StateManagedChannel {
         switch event {
         case let x as NIOTSNetworkEvents.ConnectToNWEndpoint:
             self.connect0(to: x.endpoint, promise: promise)
-        case let x as NIOTSNetworkEvents.BindToNWEndpoint:
-            self.bind0(to: x.endpoint, promise: promise)
         default:
             promise?.fail(ChannelError.operationUnsupported)
         }
