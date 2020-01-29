@@ -158,13 +158,13 @@ public final class NIOTSDatagramBootstrap {
             let connectPromise = channel.eventLoop.makePromise(of: Void.self)
             
             channel.triggerUserOutboundEvent(
-                NIOTSNetworkEvents.BindToNWEndpoint(endpoint: NWEndpoint.hostPort(host: .ipv4(.any), port: .any)),
-                promise: bindPromise
+                NIOTSNetworkEvents.ConnectToNWEndpoint(endpoint: endpoint),
+                promise: connectPromise
             )
             
             channel.triggerUserOutboundEvent(
-                NIOTSNetworkEvents.ConnectToNWEndpoint(endpoint: endpoint),
-                promise: connectPromise
+                NIOTSNetworkEvents.BindToNWEndpoint(endpoint: NWEndpoint.hostPort(host: .ipv4(.any), port: .any)),
+                promise: bindPromise
             )
             
             let done = EventLoopFuture.andAllSucceed(
