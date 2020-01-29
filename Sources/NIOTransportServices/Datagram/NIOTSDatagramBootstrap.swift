@@ -155,7 +155,7 @@ public final class NIOTSDatagramBootstrap {
     public func connect(endpoint: NWEndpoint) -> EventLoopFuture<Channel> {
         return self.connect0 { channel, promise in
             channel.triggerUserOutboundEvent(
-                NIOTSNetworkEvents.ConnectToUDPNWEndpoint(endpoint: NWEndpoint.hostPort(host: .ipv4(.any), port: .any)),
+                NIOTSNetworkEvents.ConnectToUDPNWEndpoint(endpoint: endpoint),
                 promise: promise
             )
         }
