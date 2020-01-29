@@ -119,11 +119,11 @@ public final class NIOTSDatagramBootstrap {
     ///     - host: The host to connect to.
     ///     - port: The port to connect to.
     /// - returns: An `EventLoopFuture<Channel>` to deliver the `Channel` when connected.
-    public func bind(host: String, port: Int) -> EventLoopFuture<Channel> {
+    public func connect(host: String, port: Int) -> EventLoopFuture<Channel> {
         guard let actualPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
             return self.group.next().makeFailedFuture(NIOTSErrors.InvalidPort(port: port))
         }
-        return self.bind(endpoint: NWEndpoint.hostPort(host: .init(host), port: actualPort))
+        return self.connect(endpoint: NWEndpoint.hostPort(host: .init(host), port: actualPort))
     }
 
     /// Specify the `address` to connect to for the UDP `Channel` that will be established.
@@ -131,8 +131,8 @@ public final class NIOTSDatagramBootstrap {
     /// - parameters:
     ///     - address: The address to connect to.
     /// - returns: An `EventLoopFuture<Channel>` to deliver the `Channel` when connected.
-    public func bind(to address: SocketAddress) -> EventLoopFuture<Channel> {
-        return self.bind0 { channel, promise in
+    public func connect(to address: SocketAddress) -> EventLoopFuture<Channel> {
+        return self.connect0 { channel, promise in
             channel.bind(to: address, promise: promise)
         }
     }
@@ -142,24 +142,41 @@ public final class NIOTSDatagramBootstrap {
     /// - parameters:
     ///     - unixDomainSocketPath: The _Unix domain socket_ path to connect to.
     /// - returns: An `EventLoopFuture<Channel>` to deliver the `Channel` when connected.
-    public func bind(unixDomainSocketPath: String) -> EventLoopFuture<Channel> {
+    public func connect(unixDomainSocketPath: String) -> EventLoopFuture<Channel> {
         do {
             let address = try SocketAddress(unixDomainSocketPath: unixDomainSocketPath)
-            return bind(to: address)
+            return connect(to: address)
         } catch {
             return group.next().makeFailedFuture(error)
         }
     }
 
     /// Specify the `endpoint` to connect to for the UDP `Channel` that will be established.
-    public func bind(endpoint: NWEndpoint) -> EventLoopFuture<Channel> {
-        return self.bind0 { channel, promise in
-            channel.triggerUserOutboundEvent(NIOTSNetworkEvents.BindToNWEndpoint(endpoint: endpoint),
-                                             promise: promise)
+    public func connect(endpoint: NWEndpoint) -> EventLoopFuture<Channel> {
+        return self.connect0 { channel, promise in
+            let bindPromise = channel.eventLoop.makePromise(of: Void.self)
+            let connectPromise = channel.eventLoop.makePromise(of: Void.self)
+            
+            channel.triggerUserOutboundEvent(
+                NIOTSNetworkEvents.BindToNWEndpoint(endpoint: NWEndpoint.hostPort(host: .ipv4(.any), port: .any)),
+                promise: bindPromise
+            )
+            
+            channel.triggerUserOutboundEvent(
+                NIOTSNetworkEvents.ConnectToNWEndpoint(endpoint: endpoint),
+                promise: connectPromise
+            )
+            
+            let done = EventLoopFuture.andAllSucceed(
+                [bindPromise.futureResult, connectPromise.futureResult],
+                on: channel.eventLoop
+            )
+            
+            promise.completeWith(done)
         }
     }
 
-    private func bind0(_ binder: @escaping (Channel, EventLoopPromise<Void>) -> Void) -> EventLoopFuture<Channel> {
+    private func connect0(_ binder: @escaping (Channel, EventLoopPromise<Void>) -> Void) -> EventLoopFuture<Channel> {
         let conn: Channel = NIOTSDatagramChannel(eventLoop: self.group.next() as! NIOTSEventLoop,
                                                    qos: self.qos,
                                                    udpOptions: self.udpOptions,

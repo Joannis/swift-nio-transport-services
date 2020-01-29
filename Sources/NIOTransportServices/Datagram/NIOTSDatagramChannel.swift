@@ -543,6 +543,7 @@ extension NIOTSDatagramChannel {
             }
         }
     }
+    
 
     /// Perform a read from the network.
     ///
@@ -585,7 +586,12 @@ extension NIOTSDatagramChannel {
     }
 
     public func triggerUserOutboundEvent0(_ event: Any, promise: EventLoopPromise<Void>?) {
-        promise?.fail(ChannelError.operationUnsupported)
+        switch event {
+        case let x as NIOTSNetworkEvents.ConnectToNWEndpoint:
+            self.connect0(to: x.endpoint, promise: promise)
+        default:
+            promise?.fail(ChannelError.operationUnsupported)
+        }
     }
 
     public func channelRead0(_ data: NIOAny) {
