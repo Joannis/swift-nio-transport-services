@@ -335,6 +335,17 @@ extension NIOTSDatagramChannel {
     public func bind0(to endpoint: NWEndpoint, promise: EventLoopPromise<Void>?) {
         self.activateWithType(type: .bind, to: endpoint, promise: promise)
     }
+    
+    public func bindAndConnect0(to endpoint: NWEndpoint, promise: EventLoopPromise<Void>?) {
+        do {
+            try self.state.beginActivating()
+        } catch {
+            promise?.fail(error)
+            return
+        }
+
+        self.beginActivating0(to: endpoint, promise: promise)
+    }
 
     public func close0(error: Error, mode: CloseMode, promise: EventLoopPromise<Void>?) {
         switch mode {
@@ -579,10 +590,8 @@ extension NIOTSDatagramChannel {
 
     public func triggerUserOutboundEvent0(_ event: Any, promise: EventLoopPromise<Void>?) {
         switch event {
-        case let x as NIOTSNetworkEvents.ConnectToNWEndpoint:
-            self.connect0(to: x.endpoint, promise: promise)
-        case let x as NIOTSNetworkEvents.BindToNWEndpoint:
-            self.bind0(to: x.endpoint, promise: promise)
+        case let x as NIOTSNetworkEvents.ConnectToUDPNWEndpoint:
+            self.bindAndConnect0(to: x.endpoint, promise: promise)
         default:
             promise?.fail(ChannelError.operationUnsupported)
         }

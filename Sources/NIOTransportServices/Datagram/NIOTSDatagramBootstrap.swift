@@ -154,25 +154,10 @@ public final class NIOTSDatagramBootstrap {
     /// Specify the `endpoint` to connect to for the UDP `Channel` that will be established.
     public func connect(endpoint: NWEndpoint) -> EventLoopFuture<Channel> {
         return self.connect0 { channel, promise in
-            let bindPromise = channel.eventLoop.makePromise(of: Void.self)
-            let connectPromise = channel.eventLoop.makePromise(of: Void.self)
-            
             channel.triggerUserOutboundEvent(
-                NIOTSNetworkEvents.ConnectToNWEndpoint(endpoint: endpoint),
-                promise: connectPromise
+                NIOTSNetworkEvents.ConnectToUDPNWEndpoint(endpoint: NWEndpoint.hostPort(host: .ipv4(.any), port: .any)),
+                promise: promise
             )
-            
-            channel.triggerUserOutboundEvent(
-                NIOTSNetworkEvents.BindToNWEndpoint(endpoint: NWEndpoint.hostPort(host: .ipv4(.any), port: .any)),
-                promise: bindPromise
-            )
-            
-            let done = EventLoopFuture.andAllSucceed(
-                [bindPromise.futureResult, connectPromise.futureResult],
-                on: channel.eventLoop
-            )
-            
-            promise.completeWith(done)
         }
     }
 
