@@ -86,9 +86,6 @@ internal final class NIOTSDatagramChannel {
     /// The active state, used for safely reporting the channel state across threads.
     internal var isActive0: Atomic<Bool> = Atomic(value: false)
 
-    /// The kinds of channel activation this channel supports
-    internal let supportedActivationType: ActivationType = .connect
-
     /// Whether a call to NWConnection.receive has been made, but the completion
     /// handler has not yet been invoked.
     private var outstandingRead: Bool = false
@@ -401,11 +398,6 @@ extension NIOTSDatagramChannel {
     /// A helper to handle the fact that activation is mostly common across connect and bind, and that both are
     /// not supported by a single channel type.
     private func activateWithType(type: ActivationType, to endpoint: NWEndpoint, promise: EventLoopPromise<Void>?) {
-        guard type == self.supportedActivationType else {
-            promise?.fail(ChannelError.operationUnsupported)
-            return
-        }
-
         do {
             try self.state.beginActivating()
         } catch {
